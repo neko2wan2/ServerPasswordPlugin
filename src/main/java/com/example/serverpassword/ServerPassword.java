@@ -14,6 +14,7 @@ import org.bukkit.event.player.*;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -42,6 +43,7 @@ public class ServerPassword extends JavaPlugin implements Listener {
         lockPlayer(player);
 
         player.sendMessage(ChatColor.RED + "Please type the server password in chat to login.");
+        player.sendMessage(ChatColor.GRAY + "Hint: Press 'T' to open chat and enter your password.");
 
         // Kick after 15 seconds if still locked
         Bukkit.getScheduler().runTaskLater(this, () -> {
@@ -57,6 +59,9 @@ public class ServerPassword extends JavaPlugin implements Listener {
         player.setWalkSpeed(0f);
         player.setFlySpeed(0f);
         player.setGameMode(GameMode.ADVENTURE); // prevent breaking/placing blocks
+
+        // Give blindness effect indefinitely while logging in
+        player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, Integer.MAX_VALUE, 1, false, false));
     }
 
     private void unlockPlayer(Player player) {
@@ -66,12 +71,12 @@ public class ServerPassword extends JavaPlugin implements Listener {
         player.setFlySpeed(0.1f);
         player.setGameMode(GameMode.SURVIVAL);
 
-        // Remove all potion effects
+        // Remove all potion effects including blindness
         for (PotionEffect effect : player.getActivePotionEffects()) {
             player.removePotionEffect(effect.getType());
         }
 
-        player.sendMessage(ChatColor.GREEN + "Login successful! Welcome.");
+        player.sendMessage(ChatColor.GREEN + "Login successful! Welcome to the Valiant Server!");
     }
 
     // Handle chat for password input only
