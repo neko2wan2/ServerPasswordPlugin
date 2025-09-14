@@ -1,0 +1,8 @@
+name: ServerPassword
+version: 1.0
+main: com.example.serverpassword.ServerPassword
+api-version: 1.21
+commands:
+  login:
+    description: Enter the server password
+    usage: /login <password>
