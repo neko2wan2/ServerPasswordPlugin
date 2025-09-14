@@ -1,28 +1,39 @@
 package com.example.serverpassword;
 
+import com.comphenix.protocol.PacketType;
+import com.comphenix.protocol.events.PacketAdapter;
+import com.comphenix.protocol.events.PacketEvent;
+import com.comphenix.protocol.events.PacketListener;
+import com.comphenix.protocol.ProtocolLibrary;
+import com.comphenix.protocol.ProtocolManager;
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.player.*;
-import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 
 public class ServerPassword extends JavaPlugin implements Listener {
 
-    private final String PASSWORD = "valiant123!@#"; // your password here
+    private final String PASSWORD = "valiant123!@#";
     private final Set<UUID> locked = new HashSet<>();
+    private ProtocolManager protocolManager;
 
     @Override
     public void onEnable() {
+        protocolManager = ProtocolLibrary.getProtocolManager();
         Bukkit.getPluginManager().registerEvents(this, this);
+        registerPacketListener();
         getLogger().info("ServerPassword enabled.");
     }
 
@@ -36,29 +47,34 @@ public class ServerPassword extends JavaPlugin implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         lockPlayer(player);
-
         player.sendMessage(ChatColor.RED + "Please type the server password in chat to login.");
 
-        // Kick after 15 seconds if still locked
         Bukkit.getScheduler().runTaskLater(this, () -> {
             if (locked.contains(player.getUniqueId()) && player.isOnline()) {
                 player.kickPlayer(ChatColor.RED + "Login timed out!");
             }
-        }, 20L * 15); // 15s
+        }, 20L * 15); // 15 seconds
     }
 
     private void lockPlayer(Player player) {
         locked.add(player.getUniqueId());
+
+        // Fully freeze player with potion effects
         player.setInvulnerable(true);
-        player.setWalkSpeed(0f);
-        player.setFlySpeed(0f);
+        player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, Integer.MAX_VALUE, 1, false, false));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, Integer.MAX_VALUE, 10, false, false));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, Integer.MAX_VALUE, 128, false, false));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, Integer.MAX_VALUE, 255, false, false));
     }
 
     private void unlockPlayer(Player player) {
         locked.remove(player.getUniqueId());
         player.setInvulnerable(false);
-        player.setWalkSpeed(0.2f);
-        player.setFlySpeed(0.1f);
+
+        for (PotionEffect effect : player.getActivePotionEffects()) {
+            player.removePotionEffect(effect.getType());
+        }
+
         player.sendMessage(ChatColor.GREEN + "Login successful! Welcome.");
     }
 
@@ -67,10 +83,8 @@ public class ServerPassword extends JavaPlugin implements Listener {
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         if (locked.contains(player.getUniqueId())) {
-            event.setCancelled(true); // don’t show to others
-            String message = event.getMessage();
-
-            if (message.equals(PASSWORD)) {
+            event.setCancelled(true); // hide message
+            if (event.getMessage().equals(PASSWORD)) {
                 Bukkit.getScheduler().runTask(this, () -> unlockPlayer(player));
             } else {
                 Bukkit.getScheduler().runTask(this, () -> player.kickPlayer(ChatColor.RED + "Incorrect password!"));
@@ -78,75 +92,32 @@ public class ServerPassword extends JavaPlugin implements Listener {
         }
     }
 
-    // Prevent commands
-    @EventHandler
-    public void onCommand(PlayerCommandPreprocessEvent event) {
-        if (locked.contains(event.getPlayer().getUniqueId())) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage(ChatColor.RED + "You must login first.");
-        }
-    }
-
-    // Prevent movement
-    @EventHandler
-    public void onMove(PlayerMoveEvent event) {
-        if (locked.contains(event.getPlayer().getUniqueId())) {
-            if (event.getFrom().getX() != event.getTo().getX() ||
-                event.getFrom().getY() != event.getTo().getY() ||
-                event.getFrom().getZ() != event.getTo().getZ()) {
-                event.setTo(event.getFrom());
-            }
-        }
-    }
-
-    // Prevent damage to locked players
-    @EventHandler
-    public void onDamage(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Player) {
-            Player player = (Player) event.getEntity();
-            if (locked.contains(player.getUniqueId())) {
-                event.setCancelled(true);
-            }
-        }
-    }
-
-    // Prevent locked players from ATTACKING others
-    @EventHandler
-    public void onAttack(EntityDamageByEntityEvent event) {
-        if (event.getDamager() instanceof Player) {
-            Player player = (Player) event.getDamager();
-            if (locked.contains(player.getUniqueId())) {
-                event.setCancelled(true);
-            }
-        }
-    }
-
-    // Prevent block breaking
-    @EventHandler
-    public void onBlockBreak(BlockBreakEvent event) {
-        if (locked.contains(event.getPlayer().getUniqueId())) {
-            event.setCancelled(true);
-        }
-    }
-
-    // Prevent block placing
-    @EventHandler
-    public void onBlockPlace(BlockPlaceEvent event) {
-        if (locked.contains(event.getPlayer().getUniqueId())) {
-            event.setCancelled(true);
-        }
-    }
-
-    // Prevent all interactions (clicks, item use, etc.)
-    @EventHandler
-    public void onInteract(PlayerInteractEvent event) {
-        if (locked.contains(event.getPlayer().getUniqueId())) {
-            event.setCancelled(true);
-        }
-    }
-
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         locked.remove(event.getPlayer().getUniqueId());
+    }
+
+    // --- PROTOCOLLIB PACKET LISTENER ---
+    private void registerPacketListener() {
+        PacketListener listener = new PacketAdapter(this, PacketType.Play.Client.FLYING,
+                PacketType.Play.Client.POSITION,
+                PacketType.Play.Client.POSITION_LOOK,
+                PacketType.Play.Client.LOOK,
+                PacketType.Play.Client.ARM_ANIMATION,
+                PacketType.Play.Client.USE_ENTITY,
+                PacketType.Play.Client.ENTITY_ACTION,
+                PacketType.Play.Client.WINDOW_CLICK,
+                PacketType.Play.Client.HELD_ITEM_SLOT,
+                PacketType.Play.Client.BLOCK_DIG,
+                PacketType.Play.Client.BLOCK_PLACE) {
+            @Override
+            public void onPacketReceiving(PacketEvent event) {
+                Player player = event.getPlayer();
+                if (locked.contains(player.getUniqueId())) {
+                    event.setCancelled(true); // block all client input except chat
+                }
+            }
+        };
+        protocolManager.addPacketListener(listener);
     }
 }
