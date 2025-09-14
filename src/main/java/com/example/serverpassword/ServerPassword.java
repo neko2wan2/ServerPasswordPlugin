@@ -40,15 +40,18 @@ public class ServerPassword extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
+        final Player player = event.getPlayer();
         lockPlayer(player);
 
         openPasswordGUI(player);
 
         // Kick after 15 seconds if still locked
-        Bukkit.getScheduler().runTaskLater(this, () -> {
-            if (locked.contains(player.getUniqueId()) && player.isOnline()) {
-                player.kickPlayer(ChatColor.RED + "Login timed out!");
+        Bukkit.getScheduler().runTaskLater(this, new Runnable() {
+            @Override
+            public void run() {
+                if (locked.contains(player.getUniqueId()) && player.isOnline()) {
+                    player.kickPlayer(ChatColor.RED + "Login timed out!");
+                }
             }
         }, 20L * 15); // 15s
     }
@@ -80,7 +83,7 @@ public class ServerPassword extends JavaPlugin implements Listener {
         submit.setItemMeta(meta);
         gui.setItem(26, submit);
 
-        // Add some placeholder items for input (numbers/letters would be better)
+        // Add some placeholder items for input (digits 0–8)
         for (int i = 0; i < 9; i++) {
             ItemStack item = new ItemStack(Material.PAPER);
             ItemMeta im = item.getItemMeta();
@@ -95,7 +98,9 @@ public class ServerPassword extends JavaPlugin implements Listener {
     // Handle clicks in the password GUI
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Player player = (Player) event.getWhoClicked();
+
         if (!locked.contains(player.getUniqueId())) return;
         if (!event.getView().getTitle().contains("Enter Password")) return;
 
@@ -156,9 +161,11 @@ public class ServerPassword extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onDamage(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Player player &&
-                locked.contains(player.getUniqueId())) {
-            event.setCancelled(true);
+        if (event.getEntity() instanceof Player) {
+            Player player = (Player) event.getEntity();
+            if (locked.contains(player.getUniqueId())) {
+                event.setCancelled(true);
+            }
         }
     }
 
